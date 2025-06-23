@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Student Enrollment Form</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <style>
+    .btn-group {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Student Enrollment Form</h2>
+    <form id="studentForm">
+      <div class="form-group">
+        <label for="rollNo">Roll No (Primary Key):</label>
+        <input type="text" class="form-control" id="rollNo" placeholder="Enter Roll No">
+      </div>
+      <div class="form-group">
+        <label for="fullName">Full Name:</label>
+        <input type="text" class="form-control" id="fullName" disabled>
+      </div>
+      <div class="form-group">
+        <label for="studentClass">Class:</label>
+        <input type="text" class="form-control" id="studentClass" disabled>
+      </div>
+      <div class="form-group">
+        <label for="birthDate">Birth Date:</label>
+        <input type="date" class="form-control" id="birthDate" disabled>
+      </div>
+      <div class="form-group">
+        <label for="address">Address:</label>
+        <input type="text" class="form-control" id="address" disabled>
+      </div>
+      <div class="form-group">
+        <label for="enrollDate">Enrollment Date:</label>
+        <input type="date" class="form-control" id="enrollDate" disabled>
+      </div>
+      <div class="btn-group">
+        <button type="button" class="btn btn-success" id="saveBtn" onclick="saveStudent()" disabled>Save</button>
+        <button type="button" class="btn btn-warning" id="updateBtn" onclick="updateStudent()" disabled>Update</button>
+        <button type="button" class="btn btn-danger" onclick="resetForm()">Reset</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const connToken = "90934549|-31949210198237907|90959027";
+    const dbName = "SCHOOL-DB";
+    const relName = "STUDENT-TABLE";
+    const baseUrl = "http://api.login2explore.com:5577";
+
+    $(document).ready(function () {
+      resetForm();
+      $("#rollNo").focus();
+      $("#rollNo").on("blur", checkRollNo);
+    });
+
+    function disableAll() {
+      $("#fullName, #studentClass, #birthDate, #address, #enrollDate").prop("disabled", true);
+      $("#saveBtn, #updateBtn").prop("disabled", true);
+    }
+
+    function enableAll() {
+      $("#fullName, #studentClass, #birthDate, #address, #enrollDate").prop("disabled", false);
+    }
+
+    function resetForm() {
+      $("#rollNo, #fullName, #studentClass, #birthDate, #address, #enrollDate").val("");
+      disableAll();
+      $("#rollNo").prop("disabled", false).focus();
+    }
+
+    function validateForm() {
+      if (!$("#rollNo").val() || !$("#fullName").val() || !$("#studentClass").val() ||
+          !$("#birthDate").val() || !$("#address").val() || !$("#enrollDate").val()) {
+        alert("All fields are required!");
+        return false;
+      }
+      return true;
+    }
+
+    function getStudentJson() {
+      return JSON.stringify({
+        rollNo: $("#rollNo").val(),
+        fullName: $("#fullName").val(),
+        class: $("#studentClass").val(),
+        birthDate: $("#birthDate").val(),
+        address: $("#address").val(),
+        enrollDate: $("#enrollDate").val()
+      });
+    }
+
+    function createRequest(cmd, jsonStr, recordId = "") {
+      return JSON.stringify({
+        token: connToken,
+        dbName: dbName,
+        rel: relName,
+        cmd: cmd,
+        jsonStr: jsonStr,
+        ...(recordId && { recordId: recordId })
+      });
+    }
+
+    function executeCommand(request, endpoint) {
+      let result;
+      $.ajax({
+        url: baseUrl + endpoint,
+        type: "POST",
+        data: request,
+        async: false,
+        success: function (res) {
+          result = res;
+        },
+        error: function (res) {
+          result = res.responseText;
+        }
+      });
+      return result;
+    }
+
+    function checkRollNo() {
+      const roll = $("#rollNo").val();
+      if (roll === "") return;
+
+      const getRequest = JSON.stringify({
+        token: connToken,
+        dbName: dbName,
+        rel: relName,
+        cmd: "GET_BY_KEY",
+        jsonStr: JSON.stringify({ rollNo: roll })
+      });
+
+      const result = executeCommand(getRequest, "/api/irl");
+
+      try {
+        const data = JSON.parse(result).data;
+
+        // Already exists
+        $("#rollNo").prop("disabled", true);
+        enableAll();
+        $("#saveBtn").prop("disabled", true);
+        $("#updateBtn").prop("disabled", false);
+
+        $("#fullName").val(data.fullName);
+        $("#studentClass").val(data.class);
+        $("#birthDate").val(data.birthDate);
+        $("#address").val(data.address);
+        $("#enrollDate").val(data.enrollDate);
+
+      } catch (e) {
+        // Does not exist
+        enableAll();
+        $("#saveBtn").prop("disabled", false);
+        $("#updateBtn").prop("disabled", true);
+        $("#fullName").focus();
+      }
+    }
+
+    function saveStudent() {
+      if (!validateForm()) return;
+      const data = getStudentJson();
+      const request = createRequest("PUT", data);
+      const result = executeCommand(request, "/api/iml");
+      alert("Student Saved:\n" + JSON.stringify(result));
+      resetForm();
+    }
+
+    function updateStudent() {
+      if (!validateForm()) return;
+      const roll = $("#rollNo").val();
+      const getRequest = JSON.stringify({
+        token: connToken,
+        dbName: dbName,
+        rel: relName,
+        cmd: "GET_BY_KEY",
+        jsonStr: JSON.stringify({ rollNo: roll })
+      });
+
+      const response = JSON.parse(executeCommand(getRequest, "/api/irl"));
+      const recId = response.rec_no;
+
+      const updateRequest = createRequest("UPDATE", getStudentJson(), recId);
+      const result = executeCommand(updateRequest, "/api/iml");
+      alert("Student Updated:\n" + JSON.stringify(result));
+      resetForm();
+    }
+  </script>
+</body>
+</html>
